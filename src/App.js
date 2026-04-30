@@ -50,8 +50,8 @@ function App() {
     try {
       const adminCheck = supabase
         .from('admins')
-        .select('user_id')
-        .eq('user_id', currentSession.user.id)
+        .select('email')
+        .eq('email', currentSession.user.id)
         .maybeSingle()
 
       const timeout = new Promise((resolve) =>
