@@ -460,9 +460,23 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <button onClick={() => window.print()} style={styles.primaryButton}>
-          Print / Save PDF
-        </button>
+                    <div style={styles.headerActions}>
+            <button onClick={exportFilteredChurches} style={styles.headerButton}>
+                Export Filtered
+            </button>
+
+            <button onClick={exportTopTen} style={styles.headerButton}>
+                Export Top 10
+            </button>
+
+            <button onClick={exportSelectedChurch} style={styles.headerButton}>
+                Export Church
+            </button>
+
+            <button onClick={() => window.print()} style={styles.primaryButton}>
+                Print / Save PDF
+            </button>
+            </div>
       </div>
 
       <div style={styles.filters}>
@@ -508,12 +522,6 @@ export default function Dashboard() {
         </div>
 
         <button onClick={resetFilters} style={styles.secondaryButton}>Reset</button>
-      </div>
-
-      <div style={styles.exportBar}>
-        <button onClick={exportFilteredChurches} style={styles.exportButton}>Export Filtered List</button>
-        <button onClick={exportTopTen} style={styles.exportButton}>Export Top 10</button>
-        <button onClick={exportSelectedChurch} style={styles.exportButton}>Export Selected Church</button>
       </div>
 
       {loading ? (

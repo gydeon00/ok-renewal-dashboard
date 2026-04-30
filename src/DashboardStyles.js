@@ -36,4 +36,22 @@ export const styles = {
     table: { width: '100%', borderCollapse: 'collapse', fontSize: 14 },
     th: { background: '#f3f4f6', border: '1px solid #d1d5db', padding: 10, textAlign: 'left', whiteSpace: 'nowrap' },
     td: { border: '1px solid #e5e7eb', padding: 10, verticalAlign: 'top' },
+    headerActions: {
+        display: 'flex',
+        gap: 10,
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        flexWrap: 'wrap',
+      },
+      
+      headerButton: {
+        padding: '10px 14px',
+        borderRadius: 8,
+        border: '1px solid #7f1d1d',
+        background: '#ffffff',
+        color: '#7f1d1d',
+        fontWeight: 700,
+        cursor: 'pointer',
+      },
   }
+  
