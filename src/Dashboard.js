@@ -1,6 +1,6 @@
-import { styles } from './DashboardStyles'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { styles } from './DashboardStyles'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -141,17 +141,9 @@ export default function Dashboard() {
   function nextStep(church) {
     const group = actionGroup(church)
 
-    if (group.includes('Group A')) {
-      return 'Begin with a 30-day assessment and leadership alignment conversation.'
-    }
-
-    if (group.includes('Group B')) {
-      return 'Engage quickly with a focused intervention conversation and trendline review.'
-    }
-
-    if (group.includes('Group C')) {
-      return 'Do not treat as normal revitalization. Begin replant, merger, adoption, or legacy discussion.'
-    }
+    if (group.includes('Group A')) return 'Begin with a 30-day assessment and leadership alignment conversation.'
+    if (group.includes('Group B')) return 'Engage quickly with a focused intervention conversation and trendline review.'
+    if (group.includes('Group C')) return 'Do not treat as normal revitalization. Begin replant, merger, adoption, or legacy discussion.'
 
     return 'Clarify missing data before making a recommendation.'
   }
@@ -217,16 +209,11 @@ export default function Dashboard() {
   }, [data, selectedYear, latestYear, association, selectedChurch, churchSearch])
 
   const summary = useMemo(() => {
-    const totalAttendance = filtered.reduce((sum, c) => sum + num(c.attendance), 0)
-    const totalBaptisms = filtered.reduce((sum, c) => sum + num(c.baptisms), 0)
-    const totalGiving = filtered.reduce((sum, c) => sum + num(c.total_giving), 0)
-    const totalCp = filtered.reduce((sum, c) => sum + num(c.cp_giving), 0)
-
     return {
-      totalAttendance,
-      totalBaptisms,
-      totalGiving,
-      totalCp,
+      totalAttendance: filtered.reduce((sum, c) => sum + num(c.attendance), 0),
+      totalBaptisms: filtered.reduce((sum, c) => sum + num(c.baptisms), 0),
+      totalGiving: filtered.reduce((sum, c) => sum + num(c.total_giving), 0),
+      totalCp: filtered.reduce((sum, c) => sum + num(c.cp_giving), 0),
       growing: filtered.filter(c => classifyChurch(c) === 'Growing').length,
       plateaued: filtered.filter(c => classifyChurch(c) === 'Plateaued').length,
       declining: filtered.filter(c => classifyChurch(c) === 'Declining').length,
@@ -237,56 +224,6 @@ export default function Dashboard() {
       groupD: filtered.filter(c => actionGroup(c).includes('Group D')).length,
     }
   }, [filtered])
-
-  const healthChartData = {
-    labels: ['Growing', 'Plateaued', 'Declining', 'Insufficient Data'],
-    datasets: [
-      {
-        data: [
-          summary.growing,
-          summary.plateaued,
-          summary.declining,
-          summary.insufficient,
-        ],
-        backgroundColor: ['#15803d', '#ca8a04', '#b91c1c', '#6b7280'],
-      },
-    ],
-  }
-
-  const groupChartData = {
-    labels: ['Group A Renewal', 'Group B Strategic', 'Group C Critical', 'Group D Data Gap'],
-    datasets: [
-      {
-        label: 'Churches',
-        data: [summary.groupA, summary.groupB, summary.groupC, summary.groupD],
-        backgroundColor: ['#2563eb', '#f97316', '#991b1b', '#6b7280'],
-      },
-    ],
-  }
-
-  const pieOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'bottom' },
-    },
-  }
-
-  const barOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-    },
-  }
-
-  const lineOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'bottom' },
-    },
-  }
 
   const topTen = useMemo(() => {
     return [...filtered]
@@ -317,7 +254,6 @@ export default function Dashboard() {
 
   const selectedChurchRecord = useMemo(() => {
     if (selectedChurch === 'All') return null
-
     const yearToUse = selectedYear === 'Latest' ? latestYear : Number(selectedYear)
 
     return data.find(c =>
@@ -333,6 +269,27 @@ export default function Dashboard() {
       .filter(c => c.church_name === selectedChurch)
       .sort((a, b) => Number(a.year) - Number(b.year))
   }, [selectedChurch, data])
+
+  const healthChartData = {
+    labels: ['Growing', 'Plateaued', 'Declining', 'Insufficient Data'],
+    datasets: [
+      {
+        data: [summary.growing, summary.plateaued, summary.declining, summary.insufficient],
+        backgroundColor: ['#15803d', '#ca8a04', '#b91c1c', '#6b7280'],
+      },
+    ],
+  }
+
+  const groupChartData = {
+    labels: ['Group A Renewal', 'Group B Strategic', 'Group C Critical', 'Group D Data Gap'],
+    datasets: [
+      {
+        label: 'Churches',
+        data: [summary.groupA, summary.groupB, summary.groupC, summary.groupD],
+        backgroundColor: ['#2563eb', '#f97316', '#991b1b', '#6b7280'],
+      },
+    ],
+  }
 
   const churchTrendChartData = {
     labels: selectedChurchHistory.map(c => c.year),
@@ -374,6 +331,117 @@ export default function Dashboard() {
     ],
   }
 
+  const pieOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+  }
+
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+  }
+
+  const lineOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+  }
+
+  function csvEscape(value) {
+    if (value === null || value === undefined) return ''
+    return `"${String(value).replace(/"/g, '""')}"`
+  }
+
+  function downloadCsv(filename, rows) {
+    if (!rows.length) {
+      alert('No data to export.')
+      return
+    }
+
+    const headers = Object.keys(rows[0])
+    const csv = [
+      headers.map(csvEscape).join(','),
+      ...rows.map(row => headers.map(header => csvEscape(row[header])).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = filename
+    link.click()
+
+    URL.revokeObjectURL(url)
+  }
+
+  function exportFilteredChurches() {
+    const rows = filtered.map(church => ({
+      Church: church.church_name,
+      Association: church.association,
+      Year: church.year,
+      Attendance: num(church.attendance),
+      Baptisms: num(church.baptisms),
+      TotalGiving: num(church.total_giving),
+      CPGiving: num(church.cp_giving),
+      AttendanceTrend: pct(church.attendance_trend),
+      GivingTrend: pct(church.giving_trend),
+      Status: classifyChurch(church),
+      RenewalWindow: renewalWindow(church),
+      ActionGroup: actionGroup(church),
+      Pathway: pathway(church),
+      NextStep: nextStep(church),
+    }))
+
+    downloadCsv('church-renewal-filtered-list.csv', rows)
+  }
+
+  function exportTopTen() {
+    const rows = topTen.map((church, index) => ({
+      Rank: index + 1,
+      Church: church.church_name,
+      Association: church.association,
+      Year: church.year,
+      Attendance: num(church.attendance),
+      Baptisms: num(church.baptisms),
+      CPGiving: num(church.cp_giving),
+      AttendanceTrend: pct(church.attendance_trend),
+      ActionGroup: actionGroup(church),
+      Pathway: pathway(church),
+      NextStep: nextStep(church),
+    }))
+
+    downloadCsv('top-10-churches-to-engage.csv', rows)
+  }
+
+  function exportSelectedChurch() {
+    if (!selectedChurchRecord) {
+      alert('Select a church first.')
+      return
+    }
+
+    const rows = selectedChurchHistory.map(church => ({
+      Church: church.church_name,
+      Association: church.association,
+      Year: church.year,
+      Attendance: num(church.attendance),
+      Baptisms: num(church.baptisms),
+      TotalGiving: num(church.total_giving),
+      CPGiving: num(church.cp_giving),
+      AttendanceTrend: pct(church.attendance_trend),
+      GivingTrend: pct(church.giving_trend),
+      Status: classifyChurch(church),
+      RenewalWindow: renewalWindow(church),
+      ActionGroup: actionGroup(church),
+      Pathway: pathway(church),
+      NextStep: nextStep(church),
+    }))
+
+    downloadCsv(`${selectedChurchRecord.church_name}-church-report.csv`, rows)
+  }
+
   function resetFilters() {
     setAssociation('All')
     setSelectedChurch('All')
@@ -400,18 +468,9 @@ export default function Dashboard() {
       <div style={styles.filters}>
         <div style={styles.field}>
           <label style={styles.label}>Year</label>
-          <select
-            value={selectedYear}
-            onChange={(e) => {
-              setSelectedYear(e.target.value)
-              setSelectedChurch('All')
-            }}
-            style={styles.input}
-          >
+          <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} style={styles.input}>
             <option value="Latest">Latest Year</option>
-            {years.map(year => (
-              <option key={year} value={year}>{year}</option>
-            ))}
+            {years.map(year => <option key={year} value={year}>{year}</option>)}
           </select>
         </div>
 
@@ -426,23 +485,15 @@ export default function Dashboard() {
             style={styles.input}
           >
             <option value="All">All Associations</option>
-            {associations.map(a => (
-              <option key={a} value={a}>{a}</option>
-            ))}
+            {associations.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
 
         <div style={styles.fieldWide}>
           <label style={styles.label}>Church</label>
-          <select
-            value={selectedChurch}
-            onChange={(e) => setSelectedChurch(e.target.value)}
-            style={styles.input}
-          >
+          <select value={selectedChurch} onChange={(e) => setSelectedChurch(e.target.value)} style={styles.input}>
             <option value="All">All Churches</option>
-            {churchOptions.map(church => (
-              <option key={church} value={church}>{church}</option>
-            ))}
+            {churchOptions.map(church => <option key={church} value={church}>{church}</option>)}
           </select>
         </div>
 
@@ -456,9 +507,13 @@ export default function Dashboard() {
           />
         </div>
 
-        <button onClick={resetFilters} style={styles.secondaryButton}>
-          Reset
-        </button>
+        <button onClick={resetFilters} style={styles.secondaryButton}>Reset</button>
+      </div>
+
+      <div style={styles.exportBar}>
+        <button onClick={exportFilteredChurches} style={styles.exportButton}>Export Filtered List</button>
+        <button onClick={exportTopTen} style={styles.exportButton}>Export Top 10</button>
+        <button onClick={exportSelectedChurch} style={styles.exportButton}>Export Selected Church</button>
       </div>
 
       {loading ? (
@@ -490,16 +545,12 @@ export default function Dashboard() {
           <section style={styles.chartGrid}>
             <div style={styles.chartCard}>
               <h2>Church Health Mix</h2>
-              <div style={styles.pieHolder}>
-                <Pie data={healthChartData} options={pieOptions} />
-              </div>
+              <div style={styles.pieHolder}><Pie data={healthChartData} options={pieOptions} /></div>
             </div>
 
             <div style={styles.chartCard}>
               <h2>Strategic Action Groups</h2>
-              <div style={styles.barHolder}>
-                <Bar data={groupChartData} options={barOptions} />
-              </div>
+              <div style={styles.barHolder}><Bar data={groupChartData} options={barOptions} /></div>
             </div>
           </section>
 
@@ -511,14 +562,12 @@ export default function Dashboard() {
                 ? 'This field is weighted toward decline and requires strategic prioritization.'
                 : 'There are meaningful signs of growth or stability in this field.'}
             </p>
-
             <p>
               <strong>Most urgent issue:</strong>{' '}
               {summary.groupB + summary.groupC > summary.groupA
                 ? 'A large portion of churches are either strategic decliners or critical/replant candidates.'
                 : 'There is a strong pool of receptive churches that can be engaged early.'}
             </p>
-
             <p>
               <strong>Recommended associational posture:</strong> Do not treat every church the same.
               Spend the first 90 days prioritizing receptive churches, strategic decliners, and churches
@@ -564,16 +613,12 @@ export default function Dashboard() {
                   <div style={styles.chartGrid}>
                     <div style={styles.chartCard}>
                       <h3>Attendance & Baptisms</h3>
-                      <div style={styles.lineHolder}>
-                        <Line data={churchTrendChartData} options={lineOptions} />
-                      </div>
+                      <div style={styles.lineHolder}><Line data={churchTrendChartData} options={lineOptions} /></div>
                     </div>
 
                     <div style={styles.chartCard}>
                       <h3>Giving Trends</h3>
-                      <div style={styles.lineHolder}>
-                        <Line data={churchGivingChartData} options={lineOptions} />
-                      </div>
+                      <div style={styles.lineHolder}><Line data={churchGivingChartData} options={lineOptions} /></div>
                     </div>
                   </div>
                 </>
@@ -696,4 +741,3 @@ function SummaryCard({ title, value }) {
     </div>
   )
 }
-
