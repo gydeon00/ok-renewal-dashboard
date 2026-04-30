@@ -20,6 +20,7 @@ export default function Upload() {
           .map(row => ({
             church_name: row['/"'] || row['Church Name'] || '',
             association: row['Association'] || '',
+            city: row['City'] || '',
             year: 2024,
             attendance: cleanNumber(row['2024 Attendance'] || row['Attendance']),
             baptisms: cleanNumber(row['2024 Baptisms'] || row['Baptisms']),

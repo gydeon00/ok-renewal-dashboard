@@ -232,6 +232,10 @@ export default function Dashboard() {
     return `Approx. ${yearsTo50} years to fall below 50 attendance if trend continues.`
   }
 
+  function churchLabel(church) {
+    return `${church.church_name}${church.city ? ` — ${church.city}` : ''} (${church.association})`
+  }
+
   const years = useMemo(() => {
     return [...new Set(data.map(d => Number(d.year)).filter(Boolean))]
       .sort((a, b) => b - a)
@@ -249,9 +253,11 @@ export default function Dashboard() {
     return data
       .filter(church => !yearToUse || Number(church.year) === Number(yearToUse))
       .filter(church => association === 'All' || church.association === association)
-      .map(church => church.church_name)
-      .filter(Boolean)
-      .sort()
+      .map(church => ({
+        value: church.id,
+        label: churchLabel(church),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
   }, [data, association, selectedYear, latestYear])
 
   const filtered = useMemo(() => {
@@ -260,10 +266,11 @@ export default function Dashboard() {
     return data.filter(church => {
       const matchesYear = !yearToUse || Number(church.year) === Number(yearToUse)
       const matchesAssociation = association === 'All' || church.association === association
-      const matchesChurch = selectedChurch === 'All' || church.church_name === selectedChurch
+      const matchesChurch = selectedChurch === 'All' || church.id === selectedChurch
+      const label = churchLabel(church).toLowerCase()
       const matchesSearch =
         churchSearch.trim() === '' ||
-        church.church_name?.toLowerCase().includes(churchSearch.toLowerCase())
+        label.includes(churchSearch.toLowerCase())
 
       return matchesYear && matchesAssociation && matchesChurch && matchesSearch
     })
@@ -319,18 +326,22 @@ export default function Dashboard() {
     const yearToUse = selectedYear === 'Latest' ? latestYear : Number(selectedYear)
 
     return data.find(c =>
-      c.church_name === selectedChurch &&
+      c.id === selectedChurch &&
       (!yearToUse || Number(c.year) === Number(yearToUse))
     )
   }, [selectedChurch, selectedYear, latestYear, data])
 
   const selectedChurchHistory = useMemo(() => {
-    if (selectedChurch === 'All') return []
+    if (!selectedChurchRecord) return []
 
     return data
-      .filter(c => c.church_name === selectedChurch)
+      .filter(c =>
+        c.church_name === selectedChurchRecord.church_name &&
+        c.association === selectedChurchRecord.association &&
+        (c.city || '') === (selectedChurchRecord.city || '')
+      )
       .sort((a, b) => Number(a.year) - Number(b.year))
-  }, [selectedChurch, data])
+  }, [selectedChurchRecord, data])
 
   const healthChartData = {
     labels: ['Growing', 'Plateaued', 'Declining', 'Insufficient Data'],
@@ -442,6 +453,7 @@ export default function Dashboard() {
   function exportFilteredChurches() {
     const rows = filtered.map(church => ({
       Church: church.church_name,
+      City: church.city || '',
       Association: church.association,
       Year: church.year,
       Attendance: num(church.attendance),
@@ -464,6 +476,7 @@ export default function Dashboard() {
     const rows = topTen.map((church, index) => ({
       Rank: index + 1,
       Church: church.church_name,
+      City: church.city || '',
       Association: church.association,
       Year: church.year,
       Attendance: num(church.attendance),
@@ -486,6 +499,7 @@ export default function Dashboard() {
 
     const rows = selectedChurchHistory.map(church => ({
       Church: church.church_name,
+      City: church.city || '',
       Association: church.association,
       Year: church.year,
       Attendance: num(church.attendance),
@@ -501,7 +515,7 @@ export default function Dashboard() {
       NextStep: nextStep(church),
     }))
 
-    downloadCsv(`${selectedChurchRecord.church_name}-church-report.csv`, rows)
+    downloadCsv(`${selectedChurchRecord.church_name}-${selectedChurchRecord.city || 'church'}-report.csv`, rows)
   }
 
   function resetFilters() {
@@ -554,7 +568,10 @@ export default function Dashboard() {
           <label style={styles.label}>Year</label>
           <select
             value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
+            onChange={(e) => {
+              setSelectedYear(e.target.value)
+              setSelectedChurch('All')
+            }}
             style={styles.input}
           >
             <option value="Latest">Latest Year</option>
@@ -590,7 +607,9 @@ export default function Dashboard() {
           >
             <option value="All">All Churches</option>
             {churchOptions.map(church => (
-              <option key={church} value={church}>{church}</option>
+              <option key={church.value} value={church.value}>
+                {church.label}
+              </option>
             ))}
           </select>
         </div>
@@ -600,7 +619,7 @@ export default function Dashboard() {
           <input
             value={churchSearch}
             onChange={(e) => setChurchSearch(e.target.value)}
-            placeholder="Search church name..."
+            placeholder="Search church, city, or association..."
             style={styles.input}
           />
         </div>
@@ -677,11 +696,15 @@ export default function Dashboard() {
 
           {selectedChurchRecord && (
             <section style={styles.highlightSection}>
-              <h2>Church Report: {selectedChurchRecord.church_name}</h2>
+              <h2>
+                Church Report: {selectedChurchRecord.church_name}
+                {selectedChurchRecord.city ? ` — ${selectedChurchRecord.city}` : ''}
+              </h2>
 
               <div style={styles.reportGrid}>
                 <p><strong>Year:</strong> {selectedChurchRecord.year}</p>
                 <p><strong>Association:</strong> {selectedChurchRecord.association}</p>
+                <p><strong>City:</strong> {selectedChurchRecord.city || 'Not listed'}</p>
                 <p><strong>Attendance:</strong> {num(selectedChurchRecord.attendance)}</p>
                 <p><strong>Baptisms:</strong> {num(selectedChurchRecord.baptisms)}</p>
                 <p><strong>Total Giving:</strong> {money(selectedChurchRecord.total_giving)}</p>
@@ -738,6 +761,7 @@ export default function Dashboard() {
                   <tr>
                     <th style={styles.th}>Rank</th>
                     <th style={styles.th}>Church</th>
+                    <th style={styles.th}>City</th>
                     <th style={styles.th}>Association</th>
                     <th style={styles.th}>Attendance</th>
                     <th style={styles.th}>Trend</th>
@@ -751,6 +775,7 @@ export default function Dashboard() {
                     <tr key={church.id}>
                       <td style={styles.td}>{index + 1}</td>
                       <td style={styles.td}>{church.church_name}</td>
+                      <td style={styles.td}>{church.city || ''}</td>
                       <td style={styles.td}>{church.association}</td>
                       <td style={styles.td}>{num(church.attendance)}</td>
                       <td style={styles.td}>{pct(church.attendance_trend)}</td>
@@ -785,6 +810,7 @@ export default function Dashboard() {
                   <tr>
                     <th style={styles.th}>View</th>
                     <th style={styles.th}>Church</th>
+                    <th style={styles.th}>City</th>
                     <th style={styles.th}>Association</th>
                     <th style={styles.th}>Year</th>
                     <th style={styles.th}>Attendance</th>
@@ -806,7 +832,7 @@ export default function Dashboard() {
                         <button
                           style={styles.miniButton}
                           onClick={() => {
-                            setSelectedChurch(church.church_name)
+                            setSelectedChurch(church.id)
                             window.scrollTo({ top: 0, behavior: 'smooth' })
                           }}
                         >
@@ -814,6 +840,7 @@ export default function Dashboard() {
                         </button>
                       </td>
                       <td style={styles.td}>{church.church_name}</td>
+                      <td style={styles.td}>{church.city || ''}</td>
                       <td style={styles.td}>{church.association}</td>
                       <td style={styles.td}>{church.year}</td>
                       <td style={styles.td}>{num(church.attendance)}</td>
