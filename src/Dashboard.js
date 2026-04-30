@@ -4,16 +4,20 @@ import {
   Chart as ChartJS,
   ArcElement,
   BarElement,
+  LineElement,
+  PointElement,
   CategoryScale,
   LinearScale,
   Tooltip,
   Legend,
 } from 'chart.js'
-import { Pie, Bar } from 'react-chartjs-2'
+import { Pie, Bar, Line } from 'react-chartjs-2'
 
 ChartJS.register(
   ArcElement,
   BarElement,
+  LineElement,
+  PointElement,
   CategoryScale,
   LinearScale,
   Tooltip,
@@ -25,6 +29,7 @@ export default function Dashboard() {
   const [association, setAssociation] = useState('All')
   const [selectedChurch, setSelectedChurch] = useState('All')
   const [churchSearch, setChurchSearch] = useState('')
+  const [selectedYear, setSelectedYear] = useState('Latest')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -86,7 +91,6 @@ export default function Dashboard() {
 
   function classifyChurch(church) {
     const trend = Number(church.attendance_trend)
-
     if (!Number.isFinite(trend)) return 'Insufficient Data'
     if (trend > 5) return 'Growing'
     if (trend >= -5 && trend <= 5) return 'Plateaued'
@@ -125,21 +129,10 @@ export default function Dashboard() {
   function pathway(church) {
     const window = renewalWindow(church)
 
-    if (window === 'Healthy / Growing') {
-      return 'Encourage, learn from, and consider as a partner church'
-    }
-
-    if (window.includes('Window 1')) {
-      return 'Revitalization / Assisted Revitalization'
-    }
-
-    if (window.includes('Window 2')) {
-      return 'Assisted Revitalization, Church Fostering, or Covenant Renewal'
-    }
-
-    if (window.includes('Replant')) {
-      return 'Replant, Merger, Adoption, Legacy Agreement, or Closure Discernment'
-    }
+    if (window === 'Healthy / Growing') return 'Encourage, learn from, and consider as a partner church'
+    if (window.includes('Window 1')) return 'Revitalization / Assisted Revitalization'
+    if (window.includes('Window 2')) return 'Assisted Revitalization, Church Fostering, or Covenant Renewal'
+    if (window.includes('Replant')) return 'Replant, Merger, Adoption, Legacy Agreement, or Closure Discernment'
 
     return 'Further Development Required'
   }
@@ -185,29 +178,42 @@ export default function Dashboard() {
     return `Approx. ${yearsTo50} years to fall below 50 attendance if trend continues.`
   }
 
+  const years = useMemo(() => {
+    return [...new Set(data.map(d => Number(d.year)).filter(Boolean))]
+      .sort((a, b) => b - a)
+  }, [data])
+
+  const latestYear = years[0] || null
+
   const associations = useMemo(() => {
     return [...new Set(data.map(d => d.association).filter(Boolean))].sort()
   }, [data])
 
   const churchOptions = useMemo(() => {
+    const yearToUse = selectedYear === 'Latest' ? latestYear : Number(selectedYear)
+
     return data
+      .filter(church => !yearToUse || Number(church.year) === Number(yearToUse))
       .filter(church => association === 'All' || church.association === association)
       .map(church => church.church_name)
       .filter(Boolean)
       .sort()
-  }, [data, association])
+  }, [data, association, selectedYear, latestYear])
 
   const filtered = useMemo(() => {
+    const yearToUse = selectedYear === 'Latest' ? latestYear : Number(selectedYear)
+
     return data.filter(church => {
+      const matchesYear = !yearToUse || Number(church.year) === Number(yearToUse)
       const matchesAssociation = association === 'All' || church.association === association
       const matchesChurch = selectedChurch === 'All' || church.church_name === selectedChurch
       const matchesSearch =
         churchSearch.trim() === '' ||
         church.church_name?.toLowerCase().includes(churchSearch.toLowerCase())
 
-      return matchesAssociation && matchesChurch && matchesSearch
+      return matchesYear && matchesAssociation && matchesChurch && matchesSearch
     })
-  }, [data, association, selectedChurch, churchSearch])
+  }, [data, selectedYear, latestYear, association, selectedChurch, churchSearch])
 
   const summary = useMemo(() => {
     const totalAttendance = filtered.reduce((sum, c) => sum + num(c.attendance), 0)
@@ -261,9 +267,7 @@ export default function Dashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        position: 'bottom',
-      },
+      legend: { position: 'bottom' },
     },
   }
 
@@ -271,9 +275,15 @@ export default function Dashboard() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
+    },
+  }
+
+  const lineOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom' },
     },
   }
 
@@ -306,13 +316,68 @@ export default function Dashboard() {
 
   const selectedChurchRecord = useMemo(() => {
     if (selectedChurch === 'All') return null
-    return data.find(c => c.church_name === selectedChurch)
+
+    const yearToUse = selectedYear === 'Latest' ? latestYear : Number(selectedYear)
+
+    return data.find(c =>
+      c.church_name === selectedChurch &&
+      (!yearToUse || Number(c.year) === Number(yearToUse))
+    )
+  }, [selectedChurch, selectedYear, latestYear, data])
+
+  const selectedChurchHistory = useMemo(() => {
+    if (selectedChurch === 'All') return []
+
+    return data
+      .filter(c => c.church_name === selectedChurch)
+      .sort((a, b) => Number(a.year) - Number(b.year))
   }, [selectedChurch, data])
+
+  const churchTrendChartData = {
+    labels: selectedChurchHistory.map(c => c.year),
+    datasets: [
+      {
+        label: 'Attendance',
+        data: selectedChurchHistory.map(c => num(c.attendance)),
+        borderColor: '#2563eb',
+        backgroundColor: '#2563eb',
+        tension: 0.3,
+      },
+      {
+        label: 'Baptisms',
+        data: selectedChurchHistory.map(c => num(c.baptisms)),
+        borderColor: '#15803d',
+        backgroundColor: '#15803d',
+        tension: 0.3,
+      },
+    ],
+  }
+
+  const churchGivingChartData = {
+    labels: selectedChurchHistory.map(c => c.year),
+    datasets: [
+      {
+        label: 'Total Giving',
+        data: selectedChurchHistory.map(c => num(c.total_giving)),
+        borderColor: '#7f1d1d',
+        backgroundColor: '#7f1d1d',
+        tension: 0.3,
+      },
+      {
+        label: 'CP Giving',
+        data: selectedChurchHistory.map(c => num(c.cp_giving)),
+        borderColor: '#9333ea',
+        backgroundColor: '#9333ea',
+        tension: 0.3,
+      },
+    ],
+  }
 
   function resetFilters() {
     setAssociation('All')
     setSelectedChurch('All')
     setChurchSearch('')
+    setSelectedYear('Latest')
   }
 
   return (
@@ -322,6 +387,7 @@ export default function Dashboard() {
           <h1 style={styles.title}>Oklahoma Church Renewal Dashboard</h1>
           <p style={styles.subtitle}>
             Live ACP-based renewal, revitalization, and replant strategy tool.
+            {latestYear && ` Viewing ${selectedYear === 'Latest' ? latestYear : selectedYear} data.`}
           </p>
         </div>
 
@@ -331,6 +397,23 @@ export default function Dashboard() {
       </div>
 
       <div style={styles.filters}>
+        <div style={styles.field}>
+          <label style={styles.label}>Year</label>
+          <select
+            value={selectedYear}
+            onChange={(e) => {
+              setSelectedYear(e.target.value)
+              setSelectedChurch('All')
+            }}
+            style={styles.input}
+          >
+            <option value="Latest">Latest Year</option>
+            {years.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+        </div>
+
         <div style={styles.field}>
           <label style={styles.label}>Association</label>
           <select
@@ -384,7 +467,7 @@ export default function Dashboard() {
           <div style={styles.cardGrid}>
             <SummaryCard title="Churches Shown" value={filtered.length} />
             <SummaryCard title="Total Attendance" value={summary.totalAttendance.toLocaleString()} />
-            <SummaryCard title="2024 Baptisms" value={summary.totalBaptisms.toLocaleString()} />
+            <SummaryCard title="Baptisms" value={summary.totalBaptisms.toLocaleString()} />
             <SummaryCard title="Total Giving" value={money(summary.totalGiving)} />
             <SummaryCard title="CP Giving" value={money(summary.totalCp)} />
           </div>
@@ -447,6 +530,7 @@ export default function Dashboard() {
               <h2>Church Report: {selectedChurchRecord.church_name}</h2>
 
               <div style={styles.reportGrid}>
+                <p><strong>Year:</strong> {selectedChurchRecord.year}</p>
                 <p><strong>Association:</strong> {selectedChurchRecord.association}</p>
                 <p><strong>Attendance:</strong> {num(selectedChurchRecord.attendance)}</p>
                 <p><strong>Baptisms:</strong> {num(selectedChurchRecord.baptisms)}</p>
@@ -472,6 +556,27 @@ export default function Dashboard() {
                 <li>9-year attendance projection: {annualProjection(selectedChurchRecord.attendance, selectedChurchRecord.attendance_trend, 9)}</li>
                 <li>{viabilityEstimate(selectedChurchRecord)}</li>
               </ul>
+
+              {selectedChurchHistory.length > 1 && (
+                <>
+                  <h3>Multi-Year Trend</h3>
+                  <div style={styles.chartGrid}>
+                    <div style={styles.chartCard}>
+                      <h3>Attendance & Baptisms</h3>
+                      <div style={styles.lineHolder}>
+                        <Line data={churchTrendChartData} options={lineOptions} />
+                      </div>
+                    </div>
+
+                    <div style={styles.chartCard}>
+                      <h3>Giving Trends</h3>
+                      <div style={styles.lineHolder}>
+                        <Line data={churchGivingChartData} options={lineOptions} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </section>
           )}
 
@@ -531,6 +636,7 @@ export default function Dashboard() {
                     <th style={styles.th}>View</th>
                     <th style={styles.th}>Church</th>
                     <th style={styles.th}>Association</th>
+                    <th style={styles.th}>Year</th>
                     <th style={styles.th}>Attendance</th>
                     <th style={styles.th}>Baptisms</th>
                     <th style={styles.th}>Attendance Trend</th>
@@ -559,6 +665,7 @@ export default function Dashboard() {
                       </td>
                       <td style={styles.td}>{church.church_name}</td>
                       <td style={styles.td}>{church.association}</td>
+                      <td style={styles.td}>{church.year}</td>
                       <td style={styles.td}>{num(church.attendance)}</td>
                       <td style={styles.td}>{num(church.baptisms)}</td>
                       <td style={styles.td}>{pct(church.attendance_trend)}</td>
@@ -627,7 +734,7 @@ const styles = {
   field: {
     display: 'flex',
     flexDirection: 'column',
-    minWidth: 220,
+    minWidth: 180,
   },
   fieldWide: {
     display: 'flex',
@@ -719,6 +826,10 @@ const styles = {
     margin: '0 auto',
   },
   barHolder: {
+    height: 280,
+    width: '100%',
+  },
+  lineHolder: {
     height: 280,
     width: '100%',
   },
