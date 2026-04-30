@@ -41,7 +41,7 @@ function App() {
   async function checkAdmin(currentSession) {
     setCheckingAdmin(true)
 
-    if (!currentSession?.user?.id) {
+    if (!currentSession?.user?.email) {
       setIsAdmin(false)
       setCheckingAdmin(false)
       return
@@ -51,7 +51,7 @@ function App() {
       const adminCheck = supabase
         .from('admins')
         .select('email')
-        .eq('email', currentSession.user.id)
+        .eq('email', currentSession.user.email)
         .maybeSingle()
 
       const timeout = new Promise((resolve) =>
@@ -74,23 +74,72 @@ function App() {
     setCheckingAdmin(false)
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    setSession(null)
+    setIsAdmin(false)
+    window.location.reload()
+  }
+
   return (
     <>
-      <AuthBar session={session} isAdmin={isAdmin} />
+      <div style={styles.topBar}>
+        {session ? (
+          <>
+            <span>
+              Signed in as <strong>{session.user.email}</strong>
+              {isAdmin ? ' (Admin)' : ''}
+            </span>
+
+            <button onClick={handleSignOut} style={styles.signOutButton}>
+              Sign Out
+            </button>
+          </>
+        ) : (
+          <AuthBar session={session} isAdmin={isAdmin} />
+        )}
+      </div>
 
       {checkingAdmin ? (
-        <div style={{ padding: 20 }}>Checking access...</div>
+        <div style={styles.notice}>Checking access...</div>
       ) : isAdmin ? (
         <Upload />
-      ) : (
-        <div style={{ padding: 20, background: '#fff7ed' }}>
+      ) : session ? (
+        <div style={styles.notice}>
           Signed in, but not currently listed as an admin.
         </div>
-      )}
+      ) : null}
 
       <Dashboard />
     </>
   )
+}
+
+const styles = {
+  topBar: {
+    padding: 12,
+    background: '#111',
+    color: '#fff',
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    fontFamily: 'Arial, sans-serif',
+  },
+  signOutButton: {
+    padding: '8px 12px',
+    borderRadius: 6,
+    border: 'none',
+    background: '#7f1d1d',
+    color: '#fff',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  notice: {
+    padding: 16,
+    background: '#fff7ed',
+    fontFamily: 'Arial, sans-serif',
+  },
 }
 
 export default App
