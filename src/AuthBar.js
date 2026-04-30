@@ -1,90 +1,76 @@
 import { useState } from 'react'
 import { supabase } from './supabaseClient'
 
-export default function AuthBar({ session, isAdmin }) {
+export default function AuthBar() {
   const [email, setEmail] = useState('')
-  const [sending, setSending] = useState(false)
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function signIn() {
-    if (!email) {
-      alert('Enter your email')
+    if (!email || !password) {
+      alert('Enter email and password.')
       return
     }
 
-    setSending(true)
+    setLoading(true)
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
+      password,
     })
 
-    setSending(false)
+    setLoading(false)
 
     if (error) {
       alert(error.message)
     } else {
-      alert('Check your email for login link')
+      window.location.reload()
     }
   }
 
-  async function signOut() {
-    await supabase.auth.signOut()
-    window.location.reload()
-  }
-
   return (
-    <div style={styles.bar}>
-      {session ? (
-        <>
-          <span>
-            Signed in as <strong>{session.user.email}</strong>
-            {isAdmin ? ' (Admin)' : ''}
-          </span>
+    <div style={styles.loginBox}>
+      <input
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        style={styles.input}
+      />
 
-          <button onClick={signOut} style={styles.button}>
-            Sign Out
-          </button>
-        </>
-      ) : (
-        <>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter email"
-            style={styles.input}
-          />
+      <input
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        type="password"
+        style={styles.input}
+      />
 
-          <button onClick={signIn} style={styles.button}>
-            {sending ? 'Sending...' : 'Login'}
-          </button>
-        </>
-      )}
+      <button onClick={signIn} disabled={loading} style={styles.button}>
+        {loading ? 'Logging in...' : 'Login'}
+      </button>
     </div>
   )
 }
 
 const styles = {
-  bar: {
-    padding: 12,
-    background: '#111',
-    color: '#fff',
+  loginBox: {
     display: 'flex',
-    gap: 10,
+    gap: 8,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
   input: {
     padding: 8,
-    borderRadius: 5,
+    borderRadius: 6,
     border: '1px solid #ccc',
   },
   button: {
     padding: '8px 12px',
-    borderRadius: 5,
+    borderRadius: 6,
     border: 'none',
     background: '#7f1d1d',
     color: '#fff',
     cursor: 'pointer',
+    fontWeight: 700,
   },
 }
